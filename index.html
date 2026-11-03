@@ -24,7 +24,8 @@ h1{font-size:18px;margin:4px 0 12px;color:var(--mut);font-weight:600}
 details summary{cursor:pointer;font-weight:700;font-size:16px;padding:4px 0}
 label{display:block;margin:12px 0 6px;font-size:14px;color:var(--mut)}
 textarea,select,input[type=text]{width:100%;background:#0d1528;color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:16px;font-family:inherit}
-textarea{min-height:120px;resize:vertical}
+textarea{min-height:110px;resize:vertical}
+textarea.sm{min-height:70px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .chk{display:flex;align-items:center;gap:8px;margin:10px 0 0;color:var(--tx);font-size:15px}
 .chk input{width:20px;height:20px}
@@ -58,7 +59,15 @@ button.s{background:#1e2a4a;color:var(--tx);border:1px solid var(--line);border-
     <summary>⚙ 關鍵字設定</summary>
     <label for="kw">每一行是一組關鍵字。同一行內用空白或逗號分隔＝「全部都要出現」才算命中；不同行＝任一組命中即可。</label>
     <textarea id="kw" placeholder="例：&#10;321 進入&#10;5號門&#10;請 456 上車"></textarea>
-    <div class="hint">例如「321 進入」代表句子中同時出現 321 與 進入 才會顯示。只想抓車號就單獨寫一行 321。</div>
+    <div class="hint">例如「321 進入」代表同一段話中同時出現 321 與 進入 才會顯示。只想抓車號就單獨寫一行 321。</div>
+
+    <label for="win">合併視窗（把被切斷的前後幾秒內的話接起來一起比對）</label>
+    <select id="win">
+      <option value="5">5 秒</option>
+      <option value="8">8 秒（建議）</option>
+      <option value="12">12 秒</option>
+      <option value="20">20 秒</option>
+    </select>
 
     <label for="lang">辨識語言</label>
     <select id="lang">
@@ -72,9 +81,16 @@ button.s{background:#1e2a4a;color:var(--tx);border:1px solid var(--line);border-
 
     <label class="chk"><input type="checkbox" id="optNum" checked> 中文數字視同阿拉伯數字（「三二一」＝321）</label>
     <label class="chk"><input type="checkbox" id="optRadio" checked> 無線電讀法（洞=0、幺=1、拐=7）</label>
+    <label class="chk"><input type="checkbox" id="optHomo" checked> 數字串中的近音字視為數字（是／似／事→4 等）</label>
+    <div class="hint">只有在一串文字裡已經有 2 個以上數字時才會轉換，避免把一般句子中的「是」誤當成 4。</div>
+
+    <label for="rules">自訂替換（每行一條，格式：字=替換，會無條件套用）</label>
+    <textarea id="rules" class="sm" placeholder="例：&#10;是=4&#10;似=4&#10;進去=進入"></textarea>
+    <div class="hint">測試時發現辨識常把某個字聽錯，就在這裡補一條。關鍵字與辨識結果都會套用同樣的替換。</div>
+
     <label class="chk"><input type="checkbox" id="optBeep" checked> 命中時發出提示音</label>
     <label class="chk"><input type="checkbox" id="optVib" checked> 命中時震動（部分手機支援）</label>
-    <label class="chk"><input type="checkbox" id="optAll"> 同時顯示全部逐字稿（除錯用）</label>
+    <label class="chk"><input type="checkbox" id="optAll"> 同時顯示全部逐字稿（除錯用，建議測試時打開）</label>
 
     <label for="sim">模擬一句話（測試關鍵字，不需要無線電）</label>
     <div class="row">
@@ -98,7 +114,7 @@ button.s{background:#1e2a4a;color:var(--tx);border:1px solid var(--line);border-
 </div>
 
 <div class="hint" style="padding:0 4px 16px">
-  使用提醒：側聽期間請保持此頁面在前景、螢幕不要鎖定（本頁會要求螢幕常亮）；手機麥克風需對著無線電喇叭；需連網（語音辨識由瀏覽器的雲端服務處理）。
+  使用提醒：側聽期間請保持此頁面在前景、螢幕不要鎖定（本頁會要求螢幕常亮）；手機麥克風需對著無線電喇叭，或用音源線把無線電耳機孔接到手機；需連網（語音辨識由瀏覽器的雲端服務處理）。
 </div>
 
 <script>
@@ -111,35 +127,48 @@ const store={
 };
 
 /* ---------- 設定載入 / 儲存 ---------- */
-const ids=['kw','lang','optNum','optRadio','optBeep','optVib','optAll'];
-const defaults={kw:'',lang:'zh-TW',optNum:true,optRadio:true,optBeep:true,optVib:true,optAll:false};
+const ids=['kw','lang','win','rules','optNum','optRadio','optHomo','optBeep','optVib','optAll'];
+const defaults={kw:'',lang:'zh-TW',win:'8',rules:'',optNum:true,optRadio:true,optHomo:true,optBeep:true,optVib:true,optAll:false};
 ids.forEach(id=>{
   const el=$(id),v=store.get('cfg_'+id,defaults[id]);
   if(el.type==='checkbox')el.checked=v;else el.value=v;
-  el.addEventListener('input',()=>{store.set('cfg_'+id,el.type==='checkbox'?el.checked:el.value);if(id==='optAll')renderAll();if(id==='lang'&&wanted)restartNow();});
-  el.addEventListener('change',()=>{store.set('cfg_'+id,el.type==='checkbox'?el.checked:el.value);});
+  const save=()=>store.set('cfg_'+id,el.type==='checkbox'?el.checked:el.value);
+  el.addEventListener('input',()=>{save();if(id==='optAll')renderAll();});
+  el.addEventListener('change',()=>{save();if(id==='lang'&&wanted)restartNow();});
 });
 if(store.get('cfg_kw','').trim())$('setting').open=false;
 
 /* ---------- 文字正規化與比對 ---------- */
 const DIG={'零':'0','〇':'0','○':'0','一':'1','二':'2','兩':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9','洞':'0','幺':'1','拐':'7'};
+const HOMO_SRC={4:'是似事式視市試死氏',1:'以依衣醫',2:'而爾耳',3:'山散傘',5:'舞午霧',6:'路陸',7:'妻期漆',8:'爸吧',9:'酒久舊'};
+const HOMO={};for(const d in HOMO_SRC)for(const ch of HOMO_SRC[d])HOMO[ch]=d;
+const HOMO_RE=new RegExp('['+'0-9'+Object.keys(HOMO).join('')+']{3,}','g');
+function customRules(){
+  return $('rules').value.split(/\n+/).map(l=>l.split('=')).filter(a=>a.length===2&&a[0].trim()).map(a=>[a[0].trim().toLowerCase(),a[1].trim()]);
+}
 function norm(s){
   s=String(s).toLowerCase().replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+  for(const [a,b] of customRules())s=s.split(a).join(b);
   if($('optNum').checked)s=s.replace(/[零〇○一二兩三四五六七八九]/g,c=>DIG[c]);
   if($('optRadio').checked)s=s.replace(/[洞幺拐]/g,c=>DIG[c]);
-  return s.replace(/\s+/g,'');
+  s=s.replace(/\s+/g,'');
+  if($('optHomo').checked){
+    s=s.replace(HOMO_RE,run=>{
+      const n=(run.match(/[0-9]/g)||[]).length;
+      if(n<2)return run;
+      return run.replace(/[^0-9]/g,c=>HOMO[c]||c);
+    });
+  }
+  return s;
 }
 function groups(){
   return $('kw').value.split(/\n+/).map(l=>l.trim()).filter(Boolean).map(l=>({
     raw:l,terms:l.split(/[\s,，、]+/).filter(Boolean)
   })).filter(g=>g.terms.length);
 }
-function matchGroups(text){
-  const n=norm(text),hit=[];
-  for(const g of groups()){
-    if(g.terms.every(t=>n.includes(norm(t))))hit.push(g);
-  }
-  return hit;
+function matchText(g,text){
+  const n=norm(text);
+  return g.terms.every(t=>n.includes(norm(t)));
 }
 function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function escRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
@@ -170,32 +199,82 @@ function renderAll(){
 }
 let ac=null;
 function beep(){
-  if(!$('optBeep').checked)return;
-  try{
-    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
-    if(ac.state==='suspended')ac.resume();
-    const o=ac.createOscillator(),g=ac.createGain();
-    o.type='sine';o.frequency.value=880;g.gain.value=0.15;
-    o.connect(g);g.connect(ac.destination);o.start();
-    g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+0.35);
-    o.stop(ac.currentTime+0.36);
-  }catch(e){}
+  if($('optBeep').checked){
+    try{
+      ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      if(ac.state==='suspended')ac.resume();
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type='sine';o.frequency.value=880;g.gain.value=0.15;
+      o.connect(g);g.connect(ac.destination);o.start();
+      g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+0.35);
+      o.stop(ac.currentTime+0.36);
+    }catch(e){}
+  }
+  if($('optVib').checked&&navigator.vibrate)try{navigator.vibrate([200,80,200])}catch(e){}
 }
-let lastText='',lastTs=0;
+
+/* ---------- 合併視窗比對 ----------
+   segs：最近幾秒內已確定（final）的片段，每段有流水號 seq
+   interim：正在辨識中的片段（尚未確定），占用下一個 seq
+   每次有新內容就把「最近片段接起來」再比對，被切斷的句子因此能湊回來。
+   st[組別]：記錄這組最近一次命中涵蓋的 seq 範圍，避免同一句重複命中，
+             且同一句話繼續被辨識得更完整時，會更新原紀錄而不是新增。 */
+let segs=[],interim={seq:0,text:''},nextSeq=0,st={};
+function joiner(){return /^(zh|cmn|ja)/.test($('lang').value)?'':' '}
+function addEntry(text,rawGroups,startSeq,endSeq){
+  const id=Date.now()+Math.random();
+  logs.unshift({id,ts:Date.now(),text,groups:rawGroups});
+  logs=logs.slice(0,200);store.set('logs',logs);
+  rawGroups.forEach(r=>{st[r]={start:startSeq,end:endSeq,id};});
+  renderLog(id);beep();
+}
+function updateEntry(id,text){
+  const l=logs.find(x=>x.id===id);
+  if(!l||text===l.text||text.length<l.text.length)return;
+  l.text=text;store.set('logs',logs);renderLog();
+}
+function evaluate(){
+  const now=Date.now(),win=(+$('win').value||8)*1000,J=joiner();
+  segs=segs.filter(s=>now-s.ts<=win);
+  const list=interim.text?[...segs,{seq:interim.seq,ts:now,text:interim.text}]:segs.slice();
+  if(!list.length)return;
+  const lastSeq=list[list.length-1].seq;
+  const fresh=new Map(); // 文字 → {groups,start}
+  for(const g of groups()){
+    const s=st[g.raw];
+    if(s&&lastSeq===s.end){
+      const allowed=list.filter(x=>x.seq>=s.start);
+      const text=allowed.map(x=>x.text).join(J);
+      if(matchText(g,text))updateEntry(s.id,text);
+      continue;
+    }
+    const allowed=s?list.filter(x=>x.seq>s.end):list;
+    for(let k=allowed.length-1;k>=0;k--){
+      const part=allowed.slice(k),text=part.map(x=>x.text).join(J);
+      if(matchText(g,text)){
+        const f=fresh.get(text)||{groups:[],start:part[0].seq};
+        f.groups.push(g.raw);f.start=Math.min(f.start,part[0].seq);
+        fresh.set(text,f);break;
+      }
+    }
+  }
+  fresh.forEach((f,text)=>addEntry(text,f.groups,f.start,lastSeq));
+}
 function handleFinal(text){
   text=text.trim();if(!text)return;
-  const now=Date.now();
-  if(text===lastText&&now-lastTs<3000)return;
-  lastText=text;lastTs=now;
+  const now=Date.now(),last=segs[segs.length-1];
+  if(last&&now-last.ts<6000){
+    if(text===last.text&&now-last.ts<2000)return;
+    if(text.startsWith(last.text)&&text.length>last.text.length){ // 部分手機會「累加重送」
+      last.text=text;last.ts=now;
+      if(allLines[0])allLines[0].text=text;
+      interim.text='';renderAll();evaluate();return;
+    }
+  }
+  segs.push({seq:interim.seq,ts:now,text});
   allLines.unshift({ts:now,text});allLines=allLines.slice(0,100);
-  if($('optAll').checked)renderAll();
-  const hit=matchGroups(text);
-  if(!hit.length)return;
-  const id=now+Math.random();
-  logs.unshift({id,ts:now,text,groups:hit.map(g=>g.raw)});
-  logs=logs.slice(0,200);store.set('logs',logs);
-  renderLog(id);beep();
-  if($('optVib').checked&&navigator.vibrate)try{navigator.vibrate([200,80,200])}catch(e){}
+  nextSeq=interim.seq+1;interim={seq:nextSeq,text:''};
+  renderAll();evaluate();
 }
 
 /* ---------- 語音辨識（持續運作） ---------- */
@@ -209,19 +288,21 @@ function setUI(state,msg){
 }
 function startRec(){
   if(!SR||!wanted||running)return;
-  clearTimeout(restartTimer);
+  clearTimeout(restartTimer);restartTimer=null;
   rec=new SR();
   rec.lang=$('lang').value;rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=1;
   doneUpTo=0;
   rec.onstart=()=>{running=true;startedAt=Date.now();setUI('on','側聽中…（持續運作）');};
   rec.onresult=e=>{
-    let interim='';
+    let ip='';
     for(let i=e.resultIndex;i<e.results.length;i++){
       const r=e.results[i],t=r[0].transcript;
-      if(r.isFinal){if(i>=doneUpTo){handleFinal(t);doneUpTo=i+1;}}
-      else interim+=t;
+      if(r.isFinal){if(i>=doneUpTo){doneUpTo=i+1;handleFinal(t);}}
+      else ip+=t;
     }
-    $('live').textContent=interim?('辨識中：'+interim):'';
+    interim.text=ip.trim();
+    $('live').textContent=ip?('辨識中：'+ip):'';
+    if(ip)evaluate();
   };
   rec.onerror=e=>{
     if(e.error==='not-allowed'||e.error==='service-not-allowed'){
@@ -233,9 +314,10 @@ function startRec(){
   };
   rec.onend=()=>{
     running=false;$('live').textContent='';
+    if(interim.text)handleFinal(interim.text); // 中途被結束的半句話也保留下來
     if(!wanted){setUI('off','已停止');return;}
     quickFails=(Date.now()-startedAt<1500)?quickFails+1:0;
-    const delay=Math.min(300+quickFails*700,4000);
+    const delay=quickFails===0?30:Math.min(300+quickFails*700,4000);
     setUI('wait','重新接續側聽中…');
     restartTimer=setTimeout(startRec,delay);
   };
@@ -249,12 +331,12 @@ function releaseWake(){try{wake&&wake.release()}catch(e){}wake=null}
 function start(){
   if(!SR){showWarn('此瀏覽器不支援語音辨識，請改用 Android 的 Chrome。');return;}
   if(!groups().length){$('setting').open=true;$('kw').focus();showWarn('請先輸入至少一組關鍵字。');return;}
-  hideWarn();wanted=true;quickFails=0;
+  hideWarn();wanted=true;quickFails=0;segs=[];st={};interim={seq:nextSeq,text:''};
   try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume&&ac.resume();}catch(e){}
   getWake();setUI('wait','啟動中…（若跳出詢問請按「允許」麥克風）');startRec();
 }
 function stop(){
-  wanted=false;clearTimeout(restartTimer);releaseWake();
+  wanted=false;clearTimeout(restartTimer);restartTimer=null;releaseWake();
   try{rec&&rec.abort()}catch(e){}
   running=false;setUI('off','已停止');
 }
@@ -270,10 +352,11 @@ $('simBtn').addEventListener('click',()=>{
   const t=$('sim').value.trim();if(!t)return;
   if(!groups().length){showWarn('請先輸入至少一組關鍵字。');return;}
   hideWarn();
-  const before=logs.length;lastText='';handleFinal(t);
+  segs=[];st={};interim={seq:nextSeq,text:''};
+  const before=logs.length;handleFinal(t);
   if(logs.length===before)showWarn('這句話沒有命中任何關鍵字組。');
 });
-$('clr').addEventListener('click',()=>{if(confirm('確定清除所有命中紀錄？')){logs=[];allLines=[];store.set('logs',logs);renderLog();renderAll();}});
+$('clr').addEventListener('click',()=>{if(confirm('確定清除所有命中紀錄？')){logs=[];allLines=[];st={};store.set('logs',logs);renderLog();renderAll();}});
 function logText(){return logs.slice().reverse().map(l=>hhmmss(l.ts)+'\t'+l.text+'\t['+l.groups.join(' | ')+']').join('\n')}
 $('copy').addEventListener('click',async()=>{
   try{await navigator.clipboard.writeText(logText());$('copy').textContent='已複製';setTimeout(()=>$('copy').textContent='複製',1200);}catch(e){showWarn('複製失敗，請改用下載。');}
@@ -287,7 +370,7 @@ function showWarn(m){const w=$('warn');w.textContent=m;w.style.display='block'}
 function hideWarn(){$('warn').style.display='none'}
 
 if(!SR)showWarn('此瀏覽器不支援語音辨識。請使用 Android 手機的 Chrome 瀏覽器開啟本頁（iPhone 的支援度不穩定）。');
-renderLog();
+renderLog();renderAll();
 })();
 </script>
 </body>
