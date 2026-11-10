@@ -17,82 +17,96 @@ h1{font-size:18px;margin:4px 0 12px;color:var(--mut);font-weight:600}
 .status{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:15px;color:var(--mut)}
 .dot{width:12px;height:12px;border-radius:50%;background:#64748b;flex:none}
 .dot.on{background:var(--ok);animation:p 1.2s infinite}
-.dot.wait{background:#f59e0b}
+.dot.rec{background:var(--bad);animation:p .6s infinite}
 @keyframes p{50%{opacity:.35}}
-#live{margin-top:8px;min-height:24px;font-size:15px;color:var(--mut);font-style:italic;word-break:break-all}
+.meter{position:relative;height:16px;background:#0d1528;border:1px solid var(--line);border-radius:8px;margin-top:10px;overflow:hidden}
+#bar{height:100%;width:0;background:var(--ok)}
+#bar.rec{background:var(--bad)}
+#thrMark{position:absolute;top:0;bottom:0;width:3px;background:var(--hi);left:0}
 #warn{display:none;background:#451a1a;border:1px solid #7f1d1d;color:#fecaca;border-radius:12px;padding:10px;margin-bottom:12px;font-size:14px;line-height:1.5}
 details summary{cursor:pointer;font-weight:700;font-size:16px;padding:4px 0}
 label{display:block;margin:12px 0 6px;font-size:14px;color:var(--mut)}
 textarea,select,input[type=text]{width:100%;background:#0d1528;color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:16px;font-family:inherit}
+input[type=range]{width:100%}
 textarea{min-height:110px;resize:vertical}
 textarea.sm{min-height:70px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .chk{display:flex;align-items:center;gap:8px;margin:10px 0 0;color:var(--tx);font-size:15px}
 .chk input{width:20px;height:20px}
 .hint{font-size:13px;color:var(--mut);line-height:1.55;margin-top:6px}
-button.s{background:#1e2a4a;color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:15px;cursor:pointer}
+button.s{background:#1e2a4a;color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer}
 .head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
 .head b{font-size:17px}
 .item{border-left:5px solid var(--hi);background:#0d1528;border-radius:10px;padding:10px 12px;margin-bottom:8px}
 .item .t{font-size:12px;color:var(--mut);display:flex;justify-content:space-between;gap:8px}
 .item .x{font-size:22px;line-height:1.45;margin-top:4px;word-break:break-all}
-.item mark{background:var(--hi);color:#111;border-radius:4px;padding:0 2px}
+mark{background:var(--hi);color:#111;border-radius:4px;padding:0 2px}
 .item.new{animation:f 1.6s}
 @keyframes f{0%{background:#4d3f08}100%{background:#0d1528}}
 .empty{color:var(--mut);font-size:14px;padding:8px 0}
-.all{font-size:13px;color:var(--mut);padding:4px 0;border-bottom:1px dashed var(--line);word-break:break-all}
+.clip{background:#0d1528;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}
+.clip.hit{border-color:var(--hi)}
+.clip .t{font-size:12px;color:var(--mut);display:flex;justify-content:space-between;gap:8px;margin-bottom:6px}
+.clip audio{width:100%;height:34px}
+.clip .x{font-size:18px;line-height:1.45;margin:6px 0;word-break:break-all;min-height:26px}
 </style>
 </head>
 <body>
-<h1>📻 無線電關鍵字側聽</h1>
+<h1>📻 無線電關鍵字側聽（逐句收音版）</h1>
 
 <div id="warn"></div>
 
 <div class="card">
   <button id="toggle" type="button">▶ 開始側聽</button>
   <div class="status"><span class="dot" id="dot"></span><span id="stat">未啟動</span></div>
-  <div id="live"></div>
+  <div class="meter"><div id="bar"></div><div id="thrMark"></div></div>
+  <div class="hint">綠條＝目前音量；黃線＝「有人說話」的門檻，音量超過黃線就會開始錄這一句。</div>
+  <div class="hint" id="modelStat"></div>
 </div>
 
 <div class="card">
   <details id="setting" open>
-    <summary>⚙ 關鍵字設定</summary>
-    <label for="kw">每一行是一組關鍵字。同一行內用空白或逗號分隔＝「全部都要出現」才算命中；不同行＝任一組命中即可。</label>
-    <textarea id="kw" placeholder="例：&#10;321 進入&#10;5號門&#10;請 456 上車"></textarea>
-    <div class="hint">例如「321 進入」代表同一段話中同時出現 321 與 進入 才會顯示。只想抓車號就單獨寫一行 321。</div>
+    <summary>⚙ 設定</summary>
 
-    <label for="win">合併視窗（把被切斷的前後幾秒內的話接起來一起比對）</label>
-    <select id="win">
-      <option value="5">5 秒</option>
-      <option value="8">8 秒（建議）</option>
-      <option value="12">12 秒</option>
-      <option value="20">20 秒</option>
+    <label for="kw">關鍵字：每一行是一組。同一行內用空白或逗號分隔＝「全部都要出現」才算命中；不同行＝任一組命中即可。</label>
+    <textarea id="kw" placeholder="例：&#10;321 進入&#10;5號門&#10;請 456 上車"></textarea>
+
+    <label for="sens">收音靈敏度：比背景雜音高 <span id="sensVal"></span> dB 才算有人說話</label>
+    <input type="range" id="sens" min="4" max="30" step="1" value="12">
+    <div class="hint">黃線太低會把雜音也錄進去；太高會漏掉小聲的發話。看著上方音量條調整：沒人說話時綠條應該在黃線左邊。</div>
+
+    <label for="hang">句尾判斷：安靜超過 <span id="hangVal"></span> 秒就算這一句結束</label>
+    <input type="range" id="hang" min="0.3" max="2" step="0.1" value="0.8">
+    <div class="hint">越短越容易把不同人的發話分開，但同一個人中途換氣可能被切成兩句；越長則相反。</div>
+
+    <label for="lang">說話語言</label>
+    <select id="lang">
+      <option value="chinese">國語</option>
+      <option value="english">English</option>
+      <option value="japanese">日本語</option>
+      <option value="vietnamese">Tiếng Việt</option>
+      <option value="indonesian">Bahasa Indonesia</option>
     </select>
 
-    <label for="lang">辨識語言</label>
-    <select id="lang">
-      <option value="zh-TW">國語（台灣）</option>
-      <option value="cmn-Hans-CN">國語（簡體）</option>
-      <option value="en-US">English</option>
-      <option value="ja-JP">日本語</option>
-      <option value="vi-VN">Tiếng Việt</option>
-      <option value="id-ID">Bahasa Indonesia</option>
+    <label for="model">辨識模型（在手機上本機執行，第一次需要下載，之後會快取）</label>
+    <select id="model">
+      <option value="Xenova/whisper-tiny">tiny（約 40MB，最快、準確度最低）</option>
+      <option value="Xenova/whisper-base">base（約 80MB，建議先試）</option>
+      <option value="Xenova/whisper-small">small（約 250MB，較準但手機可能很慢或記憶體不足）</option>
     </select>
 
     <label class="chk"><input type="checkbox" id="optNum" checked> 中文數字視同阿拉伯數字（「三二一」＝321）</label>
     <label class="chk"><input type="checkbox" id="optRadio" checked> 無線電讀法（洞=0、幺=1、拐=7）</label>
     <label class="chk"><input type="checkbox" id="optHomo" checked> 數字串中的近音字視為數字（是／似／事→4 等）</label>
-    <div class="hint">只有在一串文字裡已經有 2 個以上數字時才會轉換，避免把一般句子中的「是」誤當成 4。</div>
+    <label class="chk"><input type="checkbox" id="optS2T" checked> 簡體字視同繁體字（比對時不分簡繁）</label>
 
     <label for="rules">自訂替換（每行一條，格式：字=替換，會無條件套用）</label>
-    <textarea id="rules" class="sm" placeholder="例：&#10;是=4&#10;似=4&#10;進去=進入"></textarea>
-    <div class="hint">測試時發現辨識常把某個字聽錯，就在這裡補一條。關鍵字與辨識結果都會套用同樣的替換。</div>
+    <textarea id="rules" class="sm" placeholder="例：&#10;是=4&#10;進去=進入"></textarea>
 
     <label class="chk"><input type="checkbox" id="optBeep" checked> 命中時發出提示音</label>
     <label class="chk"><input type="checkbox" id="optVib" checked> 命中時震動（部分手機支援）</label>
-    <label class="chk"><input type="checkbox" id="optAll"> 同時顯示全部逐字稿（除錯用，建議測試時打開）</label>
 
-    <label for="sim">模擬一句話（測試關鍵字，不需要無線電）</label>
+    <label for="sim">模擬一句話（只測試關鍵字比對，不需要無線電）</label>
     <div class="row">
       <input type="text" id="sim" placeholder="例：三二一號車請進入二號門" style="flex:1;min-width:0">
       <button class="s" id="simBtn" type="button">測試</button>
@@ -110,44 +124,55 @@ button.s{background:#1e2a4a;color:var(--tx);border:1px solid var(--line);border-
     </span>
   </div>
   <div id="log"><div class="empty">尚無命中紀錄</div></div>
-  <div id="allWrap" style="display:none;margin-top:12px"><b style="font-size:14px;color:var(--mut)">全部逐字稿</b><div id="all"></div></div>
+</div>
+
+<div class="card">
+  <div class="head"><b>每次發話（最近 30 筆）</b></div>
+  <div class="hint" style="margin:0 0 8px">每個無線電發話會錄成一段，可以直接回放，確認錄到的內容完不完整、辨識結果對不對。</div>
+  <div id="clips"><div class="empty" id="clipsEmpty">尚無錄音</div></div>
 </div>
 
 <div class="hint" style="padding:0 4px 16px">
-  使用提醒：側聽期間請保持此頁面在前景、螢幕不要鎖定（本頁會要求螢幕常亮）；手機麥克風需對著無線電喇叭，或用音源線把無線電耳機孔接到手機；需連網（語音辨識由瀏覽器的雲端服務處理）。
+  使用提醒：側聽期間請保持此頁面在前景、螢幕不要鎖定（本頁會要求螢幕常亮）；第一次使用需連網下載辨識模型，之後可用快取。錄音與辨識都在這支手機上進行，聲音不會上傳。
 </div>
 
 <script>
 (function(){
 const $=id=>document.getElementById(id);
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 const store={
   get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 };
+const CDN='https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
 
 /* ---------- 設定載入 / 儲存 ---------- */
-const ids=['kw','lang','win','rules','optNum','optRadio','optHomo','optBeep','optVib','optAll'];
-const defaults={kw:'',lang:'zh-TW',win:'8',rules:'',optNum:true,optRadio:true,optHomo:true,optBeep:true,optVib:true,optAll:false};
+const ids=['kw','sens','hang','lang','model','rules','optNum','optRadio','optHomo','optS2T','optBeep','optVib'];
+const defaults={kw:'',sens:'12',hang:'0.8',lang:'chinese',model:'Xenova/whisper-base',rules:'',optNum:true,optRadio:true,optHomo:true,optS2T:true,optBeep:true,optVib:true};
+function showVals(){$('sensVal').textContent=$('sens').value;$('hangVal').textContent=$('hang').value;}
 ids.forEach(id=>{
   const el=$(id),v=store.get('cfg_'+id,defaults[id]);
   if(el.type==='checkbox')el.checked=v;else el.value=v;
-  const save=()=>store.set('cfg_'+id,el.type==='checkbox'?el.checked:el.value);
-  el.addEventListener('input',()=>{save();if(id==='optAll')renderAll();});
-  el.addEventListener('change',()=>{save();if(id==='lang'&&wanted)restartNow();});
+  const save=()=>{store.set('cfg_'+id,el.type==='checkbox'?el.checked:el.value);showVals();};
+  el.addEventListener('input',save);
+  el.addEventListener('change',()=>{save();if(id==='model'&&on)ensureModel().catch(()=>{});});
 });
+showVals();
 if(store.get('cfg_kw','').trim())$('setting').open=false;
 
 /* ---------- 文字正規化與比對 ---------- */
+const S2T={};
+'进進 车車 号號 门門 请請 过過 区區 货貨 柜櫃 场場 机機 头頭 装裝 闸閘 时時 开開 关關 对對 话話 没沒 说說 让讓 给給 们們 这這 边邊 还還 来來 后後 发發 应應 该該 确確 认認 听聽 见見 经經 动動 备備 检檢 验驗 码碼 两兩 线線 电電 稳穩 离離 间間 导導 运運 业業 乡鄉 车車 钟鐘 点點 钱錢 错錯 读讀 记記 录錄 现現 报報 办辦 议議 调調 协協 总總 务務 组組 织織 级級 楼樓 层層 栏欄 库庫 压壓 转轉 载載 卸卸 叉叉 吊吊'.split(' ').forEach(p=>{if(p.length===2)S2T[p[0]]=p[1];});
+const S2T_RE=new RegExp('['+Object.keys(S2T).join('')+']','g');
 const DIG={'零':'0','〇':'0','○':'0','一':'1','二':'2','兩':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9','洞':'0','幺':'1','拐':'7'};
 const HOMO_SRC={4:'是似事式視市試死氏',1:'以依衣醫',2:'而爾耳',3:'山散傘',5:'舞午霧',6:'路陸',7:'妻期漆',8:'爸吧',9:'酒久舊'};
 const HOMO={};for(const d in HOMO_SRC)for(const ch of HOMO_SRC[d])HOMO[ch]=d;
-const HOMO_RE=new RegExp('['+'0-9'+Object.keys(HOMO).join('')+']{3,}','g');
+const HOMO_RE=new RegExp('[0-9'+Object.keys(HOMO).join('')+']{3,}','g');
 function customRules(){
   return $('rules').value.split(/\n+/).map(l=>l.split('=')).filter(a=>a.length===2&&a[0].trim()).map(a=>[a[0].trim().toLowerCase(),a[1].trim()]);
 }
 function norm(s){
   s=String(s).toLowerCase().replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+  if($('optS2T').checked)s=s.replace(S2T_RE,c=>S2T[c]);
   for(const [a,b] of customRules())s=s.split(a).join(b);
   if($('optNum').checked)s=s.replace(/[零〇○一二兩三四五六七八九]/g,c=>DIG[c]);
   if($('optRadio').checked)s=s.replace(/[洞幺拐]/g,c=>DIG[c]);
@@ -170,32 +195,25 @@ function matchText(g,text){
   const n=norm(text);
   return g.terms.every(t=>n.includes(norm(t)));
 }
-function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function escRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
-function highlight(text,hit){
+function highlight(text,rawGroups){
   let out=esc(text);
-  const terms=[...new Set(hit.flatMap(g=>g.terms))].sort((a,b)=>b.length-a.length);
+  const terms=[...new Set(rawGroups.flatMap(r=>r.split(/[\s,，、]+/).filter(Boolean)))].sort((a,b)=>b.length-a.length);
   for(const t of terms){
     try{out=out.replace(new RegExp(escRe(esc(t)),'gi'),m=>'<mark>'+m+'</mark>');}catch(e){}
   }
   return out;
 }
-
-/* ---------- 紀錄 ---------- */
-let logs=store.get('logs',[]),allLines=[];
 function hhmmss(ts){return new Date(ts).toLocaleTimeString('zh-TW',{hour12:false})}
+
+/* ---------- 命中紀錄 ---------- */
+let logs=store.get('logs',[]);
 function renderLog(newId){
   const box=$('log');
   $('cnt').textContent=logs.length?'（'+logs.length+'）':'';
   if(!logs.length){box.innerHTML='<div class="empty">尚無命中紀錄</div>';return}
-  box.innerHTML=logs.map(l=>{
-    const hit=l.groups.map(g=>({terms:g.split(/[\s,，、]+/).filter(Boolean)}));
-    return '<div class="item'+(l.id===newId?' new':'')+'"><div class="t"><span>'+hhmmss(l.ts)+'</span><span>'+esc(l.groups.join(' ｜ '))+'</span></div><div class="x">'+highlight(l.text,hit)+'</div></div>';
-  }).join('');
-}
-function renderAll(){
-  $('allWrap').style.display=$('optAll').checked?'block':'none';
-  $('all').innerHTML=allLines.map(a=>'<div class="all">'+hhmmss(a.ts)+'　'+esc(a.text)+'</div>').join('');
+  box.innerHTML=logs.map(l=>'<div class="item'+(l.id===newId?' new':'')+'"><div class="t"><span>'+hhmmss(l.ts)+'</span><span>'+esc(l.groups.join(' ｜ '))+'</span></div><div class="x">'+highlight(l.text,l.groups)+'</div></div>').join('');
 }
 let ac=null;
 function beep(){
@@ -212,151 +230,227 @@ function beep(){
   }
   if($('optVib').checked&&navigator.vibrate)try{navigator.vibrate([200,80,200])}catch(e){}
 }
-
-/* ---------- 合併視窗比對 ----------
-   segs：最近幾秒內已確定（final）的片段，每段有流水號 seq
-   interim：正在辨識中的片段（尚未確定），占用下一個 seq
-   每次有新內容就把「最近片段接起來」再比對，被切斷的句子因此能湊回來。
-   st[組別]：記錄這組最近一次命中涵蓋的 seq 範圍，避免同一句重複命中，
-             且同一句話繼續被辨識得更完整時，會更新原紀錄而不是新增。 */
-let segs=[],interim={seq:0,text:''},nextSeq=0,st={};
-function joiner(){return /^(zh|cmn|ja)/.test($('lang').value)?'':' '}
-function addEntry(text,rawGroups,startSeq,endSeq){
-  const id=Date.now()+Math.random();
-  logs.unshift({id,ts:Date.now(),text,groups:rawGroups});
-  logs=logs.slice(0,200);store.set('logs',logs);
-  rawGroups.forEach(r=>{st[r]={start:startSeq,end:endSeq,id};});
-  renderLog(id);beep();
-}
-function updateEntry(id,text){
-  const l=logs.find(x=>x.id===id);
-  if(!l||text===l.text||text.length<l.text.length)return;
-  l.text=text;store.set('logs',logs);renderLog();
-}
-function evaluate(){
-  const now=Date.now(),win=(+$('win').value||8)*1000,J=joiner();
-  segs=segs.filter(s=>now-s.ts<=win);
-  const list=interim.text?[...segs,{seq:interim.seq,ts:now,text:interim.text}]:segs.slice();
-  if(!list.length)return;
-  const lastSeq=list[list.length-1].seq;
-  const fresh=new Map(); // 文字 → {groups,start}
-  for(const g of groups()){
-    const s=st[g.raw];
-    if(s&&lastSeq===s.end){
-      const allowed=list.filter(x=>x.seq>=s.start);
-      const text=allowed.map(x=>x.text).join(J);
-      if(matchText(g,text))updateEntry(s.id,text);
-      continue;
-    }
-    const allowed=s?list.filter(x=>x.seq>s.end):list;
-    for(let k=allowed.length-1;k>=0;k--){
-      const part=allowed.slice(k),text=part.map(x=>x.text).join(J);
-      if(matchText(g,text)){
-        const f=fresh.get(text)||{groups:[],start:part[0].seq};
-        f.groups.push(g.raw);f.start=Math.min(f.start,part[0].seq);
-        fresh.set(text,f);break;
-      }
-    }
+const BAD=/(字幕|订阅|訂閱|感謝(您)?(的)?(收看|觀看)|謝謝觀看|謝謝大家|Amara|請不吝)/i;
+function handleText(c){
+  const t=(c.text||'').trim();
+  if(!t||(BAD.test(t)&&t.length<24)){c.noise=true;return;}
+  c.hits=groups().filter(g=>matchText(g,t)).map(g=>g.raw);
+  if(c.hits.length){
+    const id=String(c.id)+':'+Date.now();
+    logs.unshift({id,ts:c.ts,text:t,groups:c.hits});
+    logs=logs.slice(0,200);store.set('logs',logs);
+    renderLog(id);beep();
   }
-  fresh.forEach((f,text)=>addEntry(text,f.groups,f.start,lastSeq));
-}
-function handleFinal(text){
-  text=text.trim();if(!text)return;
-  const now=Date.now(),last=segs[segs.length-1];
-  if(last&&now-last.ts<6000){
-    if(text===last.text&&now-last.ts<2000)return;
-    if(text.startsWith(last.text)&&text.length>last.text.length){ // 部分手機會「累加重送」
-      last.text=text;last.ts=now;
-      if(allLines[0])allLines[0].text=text;
-      interim.text='';renderAll();evaluate();return;
-    }
-  }
-  segs.push({seq:interim.seq,ts:now,text});
-  allLines.unshift({ts:now,text});allLines=allLines.slice(0,100);
-  nextSeq=interim.seq+1;interim={seq:nextSeq,text:''};
-  renderAll();evaluate();
 }
 
-/* ---------- 語音辨識（持續運作） ---------- */
-let rec=null,wanted=false,running=false,doneUpTo=0,startedAt=0,quickFails=0,restartTimer=null,wake=null;
-function setUI(state,msg){
-  const b=$('toggle'),d=$('dot');
-  if(state==='off'){b.textContent='▶ 開始側聽';b.classList.remove('on');d.className='dot';$('live').textContent='';}
-  if(state==='on'){b.textContent='■ 停止側聽';b.classList.add('on');d.className='dot on';}
-  if(state==='wait'){b.textContent='■ 停止側聽';b.classList.add('on');d.className='dot wait';}
-  $('stat').textContent=msg;
+/* ---------- 辨識模型（本機執行 Whisper） ---------- */
+let asr=null,asrId='',loading=null,loadingId='',loadFailAt=0;
+function setModelStatus(m){$('modelStat').textContent=m;}
+async function ensureModel(){
+  const id=$('model').value;
+  if(asr&&asrId===id)return asr;
+  if(loading&&loadingId===id)return loading;
+  if(Date.now()-loadFailAt<8000)throw new Error('模型載入失敗，請檢查網路後按「重新辨識」');
+  loadingId=id;
+  loading=(async()=>{
+    setModelStatus('載入辨識模型中…（第一次需下載，請保持連網）');
+    const T=await import(CDN);
+    T.env.allowLocalModels=false;
+    const p=await T.pipeline('automatic-speech-recognition',id,{
+      dtype:'q8',
+      progress_callback:x=>{if(x&&x.status==='progress'&&x.file)setModelStatus('下載模型 '+Math.round(x.progress||0)+'%（'+String(x.file).split('/').pop()+'）');}
+    });
+    asr=p;asrId=id;setModelStatus('辨識模型已就緒：'+id.split('/').pop());
+    return p;
+  })();
+  try{return await loading;}
+  catch(err){loading=null;loadFailAt=Date.now();setModelStatus('模型載入失敗：'+(err&&err.message||err));throw err;}
 }
-function startRec(){
-  if(!SR||!wanted||running)return;
-  clearTimeout(restartTimer);restartTimer=null;
-  rec=new SR();
-  rec.lang=$('lang').value;rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=1;
-  doneUpTo=0;
-  rec.onstart=()=>{running=true;startedAt=Date.now();setUI('on','側聽中…（持續運作）');};
-  rec.onresult=e=>{
-    let ip='';
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      const r=e.results[i],t=r[0].transcript;
-      if(r.isFinal){if(i>=doneUpTo){doneUpTo=i+1;handleFinal(t);}}
-      else ip+=t;
-    }
-    interim.text=ip.trim();
-    $('live').textContent=ip?('辨識中：'+ip):'';
-    if(ip)evaluate();
-  };
-  rec.onerror=e=>{
-    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
-      wanted=false;releaseWake();setUI('off','麥克風權限被拒絕，請在瀏覽器網址列旁的鎖頭／網站設定中允許麥克風');
-      showWarn('無法使用麥克風：請允許此網站使用麥克風，並確認網址是 https:// 開頭。');
-    }else if(e.error==='network'){
-      $('stat').textContent='網路異常，重新連線中…';
-    }
-  };
-  rec.onend=()=>{
-    running=false;$('live').textContent='';
-    if(interim.text)handleFinal(interim.text); // 中途被結束的半句話也保留下來
-    if(!wanted){setUI('off','已停止');return;}
-    quickFails=(Date.now()-startedAt<1500)?quickFails+1:0;
-    const delay=quickFails===0?30:Math.min(300+quickFails*700,4000);
-    setUI('wait','重新接續側聽中…');
-    restartTimer=setTimeout(startRec,delay);
-  };
-  try{rec.start();}catch(e){running=false;restartTimer=setTimeout(startRec,1000);}
+
+/* ---------- 每次發話的片段 ---------- */
+let clips=[],cid=0,queue=[],busy=false;
+function statusLabel(c){
+  if(c.status==='queued')return '排隊中…';
+  if(c.status==='running')return '辨識中…';
+  if(c.status==='error')return '辨識失敗';
+  if(c.noise)return '無有效語音';
+  return c.hits&&c.hits.length?'✅ 命中':'已辨識';
 }
-function restartNow(){if(rec&&running){try{rec.abort()}catch(e){}}}
+function renderClip(c){
+  let el=$('clip'+c.id);
+  if(!el){
+    const empty=$('clipsEmpty');if(empty)empty.remove();
+    el=document.createElement('div');el.id='clip'+c.id;el.className='clip';
+    el.innerHTML='<div class="t"><span class="tm"></span><span class="st"></span></div><audio controls preload="none"></audio><div class="x"></div><button class="s re" type="button">重新辨識</button>';
+    el.querySelector('audio').src=c.url;
+    el.querySelector('.re').onclick=()=>{c.status='queued';c.text='';c.hits=[];c.noise=false;renderClip(c);queue.push(c);pump();};
+    $('clips').prepend(el);
+  }
+  el.querySelector('.tm').textContent=hhmmss(c.ts)+' ・ '+c.dur.toFixed(1)+' 秒';
+  el.querySelector('.st').textContent=statusLabel(c);
+  el.classList.toggle('hit',!!(c.hits&&c.hits.length));
+  const x=el.querySelector('.x');
+  if(c.status==='error')x.textContent=c.err||'';
+  else if(c.noise)x.textContent='（沒有辨識到有效語音）';
+  else x.innerHTML=highlight(c.text||'',c.hits||[]);
+}
+async function pump(){
+  if(busy)return;busy=true;updateStat();
+  while(queue.length){
+    const c=queue.shift();
+    c.status='running';renderClip(c);updateStat();
+    try{
+      const a=await ensureModel();
+      const out=await a(c.f32,{language:$('lang').value,task:'transcribe'});
+      c.text=String(out&&out.text||'').trim();c.status='done';
+    }catch(err){c.status='error';c.err=String(err&&err.message||err);}
+    if(c.status==='done')handleText(c);
+    renderClip(c);
+  }
+  busy=false;updateStat();
+}
+function addClip(f32){
+  const c={id:++cid,ts:Date.now(),dur:f32.length/16000,f32,url:URL.createObjectURL(toWav(f32)),text:'',status:'queued',hits:[]};
+  clips.unshift(c);
+  while(clips.length>30){const o=clips.pop();URL.revokeObjectURL(o.url);const e=$('clip'+o.id);if(e)e.remove();}
+  renderClip(c);queue.push(c);pump();
+}
+
+/* ---------- 音訊處理 ---------- */
+function resample16k(buf,sr){
+  const ratio=sr/16000,n=Math.floor(buf.length/ratio),out=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const a=Math.floor(i*ratio),b=Math.max(a+1,Math.floor((i+1)*ratio));
+    let s=0,k=0;for(let j=a;j<b&&j<buf.length;j++){s+=buf[j];k++;}
+    out[i]=k?s/k:0;
+  }
+  return out;
+}
+function prepare(all,sr){
+  let m=0;for(let i=0;i<all.length;i++)m+=all[i];m/=all.length||1;
+  for(let i=0;i<all.length;i++)all[i]-=m;
+  const f=resample16k(all,sr);
+  let peak=0;for(let i=0;i<f.length;i++){const a=Math.abs(f[i]);if(a>peak)peak=a;}
+  const g=Math.min(0.9/(peak||1),30);
+  for(let i=0;i<f.length;i++)f[i]*=g;
+  return f;
+}
+function toWav(f){
+  const b=new ArrayBuffer(44+f.length*2),v=new DataView(b);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  w(0,'RIFF');v.setUint32(4,36+f.length*2,true);w(8,'WAVE');w(12,'fmt ');
+  v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,16000,true);v.setUint32(28,32000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
+  w(36,'data');v.setUint32(40,f.length*2,true);
+  for(let i=0;i<f.length;i++){const s=Math.max(-1,Math.min(1,f[i]));v.setInt16(44+i*2,s<0?s*0x8000:s*0x7fff,true);}
+  return new Blob([b],{type:'audio/wav'});
+}
+
+/* ---------- 收音與發話偵測 ----------
+   idle：持續保留最近 0.8 秒（預錄），音量連續超過門檻就切到 rec，
+         並把預錄接在前面，所以開頭的字不會漏。
+   rec ：音量低於門檻的 60% 連續達「句尾判斷」秒數就結束這一句，單獨送去辨識。 */
+let ctx=null,stream=null,proc=null,srcNode=null,on=false,wake=null;
+let floor=0.002,state='idle',pre=[],preDur=0,cur=[],curDur=0,voicedT=0,quietT=0,loud=0,lastRms=0,lastThr=0.003;
+const PRE=0.8,MAXS=25,MINV=0.4,ABS_MIN=0.003;
+function finish(){
+  const blocks=cur,sr=ctx.sampleRate,v=voicedT;
+  state='idle';cur=[];curDur=0;voicedT=0;quietT=0;loud=0;pre=[];preDur=0;
+  if(v<MINV||!blocks.length)return;
+  let n=0;blocks.forEach(b=>n+=b.length);
+  const all=new Float32Array(n);let o=0;blocks.forEach(b=>{all.set(b,o);o+=b.length;});
+  addClip(prepare(all,sr));
+}
+function onBlock(d){
+  const sr=ctx.sampleRate,dt=d.length/sr;
+  let s=0;for(let i=0;i<d.length;i++)s+=d[i]*d[i];
+  const rms=Math.sqrt(s/d.length);
+  const off=+$('sens').value,hang=+$('hang').value;
+  const thr=Math.max(floor*Math.pow(10,off/20),ABS_MIN);
+  lastRms=rms;lastThr=thr;
+  if(state==='idle'){
+    pre.push(d);preDur+=dt;
+    while(preDur>PRE&&pre.length>1){preDur-=pre[0].length/sr;pre.shift();}
+    if(rms<thr)floor=Math.max(floor*0.97+rms*0.03,0.0005);
+    loud=rms>thr?loud+1:0;
+    if(loud>=2){state='rec';cur=pre.slice();curDur=preDur;pre=[];preDur=0;voicedT=0;quietT=0;}
+  }else{
+    cur.push(d);curDur+=dt;
+    if(rms>thr*0.6){quietT=0;voicedT+=dt;}else quietT+=dt;
+    if(quietT>=hang||curDur>=MAXS)finish();
+  }
+}
+let lastStat='';
+function updateStat(){
+  let t,cls='dot';
+  if(!on){t='未啟動';}
+  else if(state==='rec'){t='🔴 收音中…';cls='dot rec';}
+  else{t='待機中，等待無線電聲音';cls='dot on';if(busy||queue.length)t+='（辨識中，排隊 '+queue.length+' 筆）';}
+  if(t!==lastStat){lastStat=t;$('stat').textContent=t;$('dot').className=cls;}
+}
+function meterLoop(){
+  if(!on)return;
+  const pct=x=>Math.max(0,Math.min(100,(20*Math.log10(x+1e-6)+70)/70*100));
+  $('bar').style.width=pct(lastRms)+'%';
+  $('bar').className=state==='rec'?'rec':'';
+  $('thrMark').style.left=pct(lastThr)+'%';
+  updateStat();
+  requestAnimationFrame(meterLoop);
+}
 async function getWake(){
-  try{if('wakeLock'in navigator&&wanted&&!wake){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>{wake=null});}}catch(e){}
+  try{if('wakeLock'in navigator&&on&&!wake){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>{wake=null});}}catch(e){}
 }
 function releaseWake(){try{wake&&wake.release()}catch(e){}wake=null}
-function start(){
-  if(!SR){showWarn('此瀏覽器不支援語音辨識，請改用 Android 的 Chrome。');return;}
+async function start(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){showWarn('此瀏覽器或網址不支援麥克風存取（需要 https:// 開頭的網址）。');return;}
   if(!groups().length){$('setting').open=true;$('kw').focus();showWarn('請先輸入至少一組關鍵字。');return;}
-  hideWarn();wanted=true;quickFails=0;segs=[];st={};interim={seq:nextSeq,text:''};
-  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume&&ac.resume();}catch(e){}
-  getWake();setUI('wait','啟動中…（若跳出詢問請按「允許」麥克風）');startRec();
+  hideWarn();
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1}});
+  }catch(e){showWarn('無法使用麥克風：請允許此網站使用麥克風。');return;}
+  try{
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    await ctx.resume();
+    srcNode=ctx.createMediaStreamSource(stream);
+    proc=ctx.createScriptProcessor(2048,1,1);
+    proc.onaudioprocess=e=>{if(on)onBlock(new Float32Array(e.inputBuffer.getChannelData(0)));};
+    srcNode.connect(proc);proc.connect(ctx.destination);
+  }catch(e){showWarn('音訊初始化失敗：'+(e&&e.message||e));stream.getTracks().forEach(t=>t.stop());return;}
+  on=true;state='idle';pre=[];preDur=0;cur=[];floor=0.002;loud=0;
+  $('toggle').textContent='■ 停止側聽';$('toggle').classList.add('on');
+  getWake();ensureModel().catch(()=>{});meterLoop();
 }
 function stop(){
-  wanted=false;clearTimeout(restartTimer);restartTimer=null;releaseWake();
-  try{rec&&rec.abort()}catch(e){}
-  running=false;setUI('off','已停止');
+  if(state==='rec'&&ctx)finish();
+  on=false;releaseWake();
+  try{proc&&proc.disconnect();srcNode&&srcNode.disconnect();}catch(e){}
+  try{stream&&stream.getTracks().forEach(t=>t.stop());}catch(e){}
+  try{ctx&&ctx.close();}catch(e){}
+  proc=srcNode=stream=ctx=null;state='idle';
+  $('toggle').textContent='▶ 開始側聽';$('toggle').classList.remove('on');
+  $('bar').style.width='0';updateStat();
 }
-$('toggle').addEventListener('click',()=>wanted?stop():start());
-
+$('toggle').addEventListener('click',()=>on?stop():start());
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&wanted){getWake();if(!running)startRec();}
+  if(document.visibilityState==='visible'&&on){getWake();if(ctx&&ctx.state==='suspended')ctx.resume();}
 });
-setInterval(()=>{if(wanted&&!running&&!restartTimer)startRec();},5000);
+setInterval(()=>{
+  if(!on||!stream)return;
+  const t=stream.getAudioTracks()[0];
+  if(!t||t.readyState==='ended'){stop();showWarn('麥克風連線中斷，請重新按「開始側聽」。');}
+  else if(ctx&&ctx.state==='suspended')ctx.resume();
+},3000);
 
 /* ---------- 其他按鈕 ---------- */
 $('simBtn').addEventListener('click',()=>{
   const t=$('sim').value.trim();if(!t)return;
   if(!groups().length){showWarn('請先輸入至少一組關鍵字。');return;}
   hideWarn();
-  segs=[];st={};interim={seq:nextSeq,text:''};
-  const before=logs.length;handleFinal(t);
+  const before=logs.length;
+  handleText({id:'sim',ts:Date.now(),text:t});
   if(logs.length===before)showWarn('這句話沒有命中任何關鍵字組。');
 });
-$('clr').addEventListener('click',()=>{if(confirm('確定清除所有命中紀錄？')){logs=[];allLines=[];st={};store.set('logs',logs);renderLog();renderAll();}});
+$('clr').addEventListener('click',()=>{if(confirm('確定清除所有命中紀錄？')){logs=[];store.set('logs',logs);renderLog();}});
 function logText(){return logs.slice().reverse().map(l=>hhmmss(l.ts)+'\t'+l.text+'\t['+l.groups.join(' | ')+']').join('\n')}
 $('copy').addEventListener('click',async()=>{
   try{await navigator.clipboard.writeText(logText());$('copy').textContent='已複製';setTimeout(()=>$('copy').textContent='複製',1200);}catch(e){showWarn('複製失敗，請改用下載。');}
@@ -368,9 +462,7 @@ $('dl').addEventListener('click',()=>{
 });
 function showWarn(m){const w=$('warn');w.textContent=m;w.style.display='block'}
 function hideWarn(){$('warn').style.display='none'}
-
-if(!SR)showWarn('此瀏覽器不支援語音辨識。請使用 Android 手機的 Chrome 瀏覽器開啟本頁（iPhone 的支援度不穩定）。');
-renderLog();renderAll();
+renderLog();updateStat();
 })();
 </script>
 </body>
